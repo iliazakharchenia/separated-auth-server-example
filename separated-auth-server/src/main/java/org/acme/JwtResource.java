@@ -1,6 +1,5 @@
 package org.acme;
 
-import io.smallrye.jwt.auth.principal.JWTParser;
 import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -27,10 +26,12 @@ public class JwtResource {
             return Uni.createFrom().item(Response.status(400).build());
 
         boolean isValid = this.jwtTokenService.validateRefreshToken(refresh);
-        System.out.println("is valid " + isValid);
+        System.out.println("is valid: " + isValid);
+        if (isValid) return Uni.createFrom().item(Response.ok(
+                AccessJwt.from(this.jwtTokenService.generateAccessJwt())
+        ).build());
 
-        return Uni.createFrom().item(Response.status(200).build());
-        //return this.jwtTokenService.generateAccessToken().map(AccessJwt::from);
+        return Uni.createFrom().item(Response.status(401).build());
     }
 
     @GET
@@ -41,11 +42,13 @@ public class JwtResource {
         if (username == null || password == null)
             return Uni.createFrom().item(Response.status(400).build());
 
-        return this.jwtTokenService.getTokenPair().map(tokenPair ->
-                new TokenPair(tokenPair.access(), tokenPair.refresh()))
-                    .map(tokenPair -> {
-                        if (this.authorisationService.login(username, password))
-                            return Response.ok(tokenPair).build();
+        return Uni.createFrom().item(this.authorisationService.login(username, password))
+                    .map(loggedIn -> {
+                        if (loggedIn)
+                            return Response.ok(TokenPair.from(
+                                    this.jwtTokenService.generateAccessJwt(),
+                                    this.jwtTokenService.generateRefreshJwt())).build();
+
                         else return Response.status(401).build();
                     });
     }
