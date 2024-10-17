@@ -1,6 +1,7 @@
 package org.acme;
 
 import io.smallrye.mutiny.Uni;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -21,27 +22,32 @@ public class JwtResource {
     @GET
     @Path("/access")
     @Produces(MediaType.APPLICATION_JSON)
-    public Uni<Response> getAccessToken(@RestHeader("refreshToken") String refresh) {
-        if (refresh == null)
-            return Uni.createFrom().item(Response.status(400).build());
+    public Uni<Response> getAccessToken(@NotNull @RestHeader("refreshToken") String refresh) {
+        return Uni.createFrom().item(refresh)
+                .map(token -> {
+                    if (jwtTokenService.validateRefreshToken(token)) return Response.ok(
+                            AccessJwt.from(this.jwtTokenService.generateAccessJwt())
+                    ).build();
+                    else return Response.status(401).build();
+                });
+    }
 
-        boolean isValid = this.jwtTokenService.validateRefreshToken(refresh);
-        System.out.println("is valid: " + isValid);
-        if (isValid) return Uni.createFrom().item(Response.ok(
-                AccessJwt.from(this.jwtTokenService.generateAccessJwt())
-        ).build());
-
-        return Uni.createFrom().item(Response.status(401).build());
+    @GET
+    @Path("/access-validate")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Uni<Response> validateAccessToken(@NotNull @RestHeader("accessToken") String access) {
+        return Uni.createFrom().item(access)
+                .map(token -> {
+                    if (jwtTokenService.validateAccessToken(token)) return Response.ok().build();
+                    else return Response.status(401).build();
+                });
     }
 
     @GET
     @Path("/login")
     @Produces(MediaType.APPLICATION_JSON)
-    public Uni<Response> login(@RestHeader("username") String username,
-                               @RestHeader("password") String password) {
-        if (username == null || password == null)
-            return Uni.createFrom().item(Response.status(400).build());
-
+    public Uni<Response> login(@NotNull @RestHeader("username") String username,
+                               @NotNull @RestHeader("password") String password) {
         return Uni.createFrom().item(this.authorisationService.login(username, password))
                     .map(loggedIn -> {
                         if (loggedIn)

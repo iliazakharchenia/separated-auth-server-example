@@ -31,8 +31,26 @@ public class JwtTokenService {
             var refreshTokenObject = this.verifier.verify(refresh).getClaims();
             if (refreshTokenObject.containsKey("type")) {
                 var type = refreshTokenObject.get("type").toString();
-                if (!Objects.equals(type.hashCode(), REFRESH_STRING.hashCode()))
+                if (!Objects.equals(type, REFRESH_STRING))
                     throw new JWTVerificationException("Claim 'type' is not a '" + TokenType.REFRESH + "'!");
+
+                return true;
+            } else {
+                throw new JWTVerificationException("No 'type' claim in the token!");
+            }
+        } catch (JWTVerificationException e) {
+            System.out.println(e);
+            return false;
+        }
+    }
+
+    public boolean validateAccessToken(String access) {
+        try {
+            var refreshTokenObject = this.verifier.verify(access).getClaims();
+            if (refreshTokenObject.containsKey("type")) {
+                var type = refreshTokenObject.get("type").toString();
+                if (!Objects.equals(type, ACCESS_STRING))
+                    throw new JWTVerificationException("Claim 'type' is not a '" + TokenType.ACCESS + "'!");
 
                 return true;
             } else {
