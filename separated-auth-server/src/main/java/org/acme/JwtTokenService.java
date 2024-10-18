@@ -10,6 +10,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.sql.Date;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Singleton
@@ -20,8 +21,12 @@ public class JwtTokenService {
     private final String REFRESH_STRING = "\""+TokenType.REFRESH+"\"";
     private final String ACCESS_STRING = "\""+TokenType.ACCESS+"\"";
 
-    public JwtTokenService(@ConfigProperty(name = "jwt.access.secret") String jwtSecret) {
+    public final String rolesDelimeter;
+
+    public JwtTokenService(@ConfigProperty(name = "jwt.access.secret") String jwtSecret,
+                           @ConfigProperty(name = "security.roles-delimeter") String rolesDelimeter) {
         this.jwtSecret = jwtSecret;
+        this.rolesDelimeter = rolesDelimeter;
         this.algorithm = Algorithm.HMAC256(this.jwtSecret);
         this.verifier = JWT.require(this.algorithm).build();
     }
@@ -39,7 +44,7 @@ public class JwtTokenService {
                 throw new JWTVerificationException("No 'type' claim in the token!");
             }
         } catch (JWTVerificationException e) {
-            System.out.println(e);
+            // log exception if needed
             return false;
         }
     }
@@ -57,12 +62,12 @@ public class JwtTokenService {
                 throw new JWTVerificationException("No 'type' claim in the token!");
             }
         } catch (JWTVerificationException e) {
-            System.out.println(e);
+            // log exception if needed
             return false;
         }
     }
 
-    public String generateRefreshJwt() {
+    public String generateRefreshJwt(Set<String> roles) {
         var instantNow = Instant.now();
         var issuedAt = Date.from(instantNow);
         var expiresAt = Date.from(instantNow.plusSeconds(300));
@@ -70,12 +75,13 @@ public class JwtTokenService {
         return JWT.create().withJWTId(UUID.randomUUID().toString())
                 .withIssuer("jwt-auth-service")
                 .withClaim("type", TokenType.REFRESH.toString())
+                .withClaim("roles", buildRolesString(roles))
                 .withIssuedAt(issuedAt)
                 .withExpiresAt(expiresAt)
                 .sign(this.algorithm);
     }
 
-    public String generateAccessJwt() {
+    public String generateAccessJwt(Set<String> roles) {
         var instantNow = Instant.now();
         var issuedAt = Date.from(instantNow);
         var expiresAt = Date.from(instantNow.plusSeconds(60));
@@ -83,8 +89,37 @@ public class JwtTokenService {
         return JWT.create().withJWTId(UUID.randomUUID().toString())
                 .withIssuer("jwt-auth-service")
                 .withClaim("type", TokenType.ACCESS.toString())
+                .withClaim("roles", buildRolesString(roles))
                 .withIssuedAt(issuedAt)
                 .withExpiresAt(expiresAt)
                 .sign(this.algorithm);
+    }
+
+    public String generateAccessJwt(String refresh) {
+        var instantNow = Instant.now();
+        var issuedAt = Date.from(instantNow);
+        var expiresAt = Date.from(instantNow.plusSeconds(60));
+        var refreshTokenData = this.verifier.verify(refresh);
+        var rolesString = refreshTokenData.getClaim("roles").asString();
+
+        return JWT.create().withJWTId(UUID.randomUUID().toString())
+                .withIssuer("jwt-auth-service")
+                .withClaim("type", TokenType.ACCESS.toString())
+                .withClaim("roles", rolesString)
+                .withIssuedAt(issuedAt)
+                .withExpiresAt(expiresAt)
+                .sign(this.algorithm);
+    }
+
+    private String buildRolesString(Set<String> roles) {
+        if (roles.size() == 1) return roles.stream().findFirst().get();
+
+        StringBuilder stringBuilder = new StringBuilder();
+        roles.forEach(role -> {
+            stringBuilder.append(role).append(this.rolesDelimeter);
+        });
+        stringBuilder.deleteCharAt(stringBuilder.length()-1);
+
+        return stringBuilder.toString();
     }
 }

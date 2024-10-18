@@ -4,6 +4,8 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static io.restassured.RestAssured.*;
 
 @QuarkusTest
@@ -13,7 +15,7 @@ class JwtTokenServiceTest {
 
     @Test
     void validRefreshTokenRefreshTokenValidationShouldAnswerWithTheOkStatus() {
-        String refresh = jwtTokenService.generateRefreshJwt();
+        String refresh = jwtTokenService.generateRefreshJwt(Set.of("USER", "READ"));
 
         given()
                 .header("refreshToken", refresh)
@@ -24,7 +26,7 @@ class JwtTokenServiceTest {
 
     @Test
     void validRefreshTokenRefreshTokenValidationShouldAnswerWithTheValidAccessTokenInTheBody() {
-        String refresh = jwtTokenService.generateRefreshJwt();
+        String refresh = jwtTokenService.generateRefreshJwt(Set.of("USER"));
 
         var accessTokenResponse = given()
                 .header("refreshToken", refresh)

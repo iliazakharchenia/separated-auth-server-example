@@ -26,7 +26,7 @@ public class JwtResource {
         return Uni.createFrom().item(refresh)
                 .map(token -> {
                     if (jwtTokenService.validateRefreshToken(token)) return Response.ok(
-                            AccessJwt.from(this.jwtTokenService.generateAccessJwt())
+                            AccessJwt.from(this.jwtTokenService.generateAccessJwt(refresh))
                     ).build();
                     else return Response.status(401).build();
                 });
@@ -49,14 +49,11 @@ public class JwtResource {
     public Uni<Response> login(@NotNull @RestHeader("username") String username,
                                @NotNull @RestHeader("password") String password) {
         return Uni.createFrom().item(this.authorisationService.login(username, password))
-                    .map(loggedIn -> {
-                        if (loggedIn)
-                            return Response.ok(TokenPair.from(
-                                    this.jwtTokenService.generateAccessJwt(),
-                                    this.jwtTokenService.generateRefreshJwt())).build();
-
-                        else return Response.status(401).build();
-                    });
+                .map(userData -> Response.ok(TokenPair.from(
+                            this.jwtTokenService.generateAccessJwt(userData.roles()),
+                            this.jwtTokenService.generateRefreshJwt(userData.roles()))
+                ).build())
+                .replaceIfNullWith(() -> Response.status(401).build());
     }
 
     public record AccessJwt(String accessToken) {
