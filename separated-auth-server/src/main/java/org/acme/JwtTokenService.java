@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import io.quarkus.runtime.Startup;
 import jakarta.inject.Singleton;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -14,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Singleton
+@Startup
 public class JwtTokenService {
     private final String jwtSecret;
     private final Algorithm algorithm;
@@ -21,12 +23,12 @@ public class JwtTokenService {
     private final String REFRESH_STRING = "\""+TokenType.REFRESH+"\"";
     private final String ACCESS_STRING = "\""+TokenType.ACCESS+"\"";
 
-    public final String rolesDelimeter;
+    public final String ROLES_DELIMITER;
 
     public JwtTokenService(@ConfigProperty(name = "jwt.access.secret") String jwtSecret,
-                           @ConfigProperty(name = "security.roles-delimeter") String rolesDelimeter) {
+                           @ConfigProperty(name = "security.roles-delimiter") String ROLES_DELIMITER) {
         this.jwtSecret = jwtSecret;
-        this.rolesDelimeter = rolesDelimeter;
+        this.ROLES_DELIMITER = ROLES_DELIMITER;
         this.algorithm = Algorithm.HMAC256(this.jwtSecret);
         this.verifier = JWT.require(this.algorithm).build();
     }
@@ -51,11 +53,34 @@ public class JwtTokenService {
 
     public boolean validateAccessToken(String access) {
         try {
-            var refreshTokenObject = this.verifier.verify(access).getClaims();
-            if (refreshTokenObject.containsKey("type")) {
-                var type = refreshTokenObject.get("type").toString();
+            var accessTokenObject = this.verifier.verify(access).getClaims();
+            if (accessTokenObject.containsKey("type")) {
+                var type = accessTokenObject.get("type").toString();
                 if (!Objects.equals(type, ACCESS_STRING))
                     throw new JWTVerificationException("Claim 'type' is not a '" + TokenType.ACCESS + "'!");
+
+                return true;
+            } else {
+                throw new JWTVerificationException("No 'type' claim in the token!");
+            }
+        } catch (JWTVerificationException e) {
+            // log exception if needed
+            return false;
+        }
+    }
+
+    public boolean validateAccessTokenAndCheckRoles(String access, Set<String> roles) {
+        try {
+            var accessTokenObject = this.verifier.verify(access).getClaims();
+            if (accessTokenObject.containsKey("type")) {
+                var type = accessTokenObject.get("type").toString();
+                if (!Objects.equals(type, ACCESS_STRING))
+                    throw new JWTVerificationException("Claim 'type' is not a '" + TokenType.ACCESS + "'!");
+
+                var rolesString = accessTokenObject.get("roles").asString();
+                var rolesSet = this.parseRoles(rolesString);
+                boolean containsAllRoles = rolesSet.containsAll(roles);
+                if (!containsAllRoles) throw new JWTVerificationException("No 'type' claim in the token!");
 
                 return true;
             } else {
@@ -111,15 +136,20 @@ public class JwtTokenService {
                 .sign(this.algorithm);
     }
 
-    private String buildRolesString(Set<String> roles) {
+    public String buildRolesString(Set<String> roles) {
         if (roles.size() == 1) return roles.stream().findFirst().get();
 
         StringBuilder stringBuilder = new StringBuilder();
         roles.forEach(role -> {
-            stringBuilder.append(role).append(this.rolesDelimeter);
+            stringBuilder.append(role).append(this.ROLES_DELIMITER);
         });
         stringBuilder.deleteCharAt(stringBuilder.length()-1);
 
         return stringBuilder.toString();
+    }
+
+    public Set<String> parseRoles(String rolesString) {
+        var roles = rolesString.split(this.ROLES_DELIMITER);
+        return Set.of(roles);
     }
 }

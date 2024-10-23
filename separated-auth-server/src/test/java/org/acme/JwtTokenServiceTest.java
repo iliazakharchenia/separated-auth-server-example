@@ -25,7 +25,7 @@ class JwtTokenServiceTest {
     }
 
     @Test
-    void validRefreshTokenRefreshTokenValidationShouldAnswerWithTheValidAccessTokenInTheBody() {
+    void validRefreshTokenCanBeUsedForGeneratingTheValidAccessTokenInTheBodyAfterRequestAccessToken() {
         String refresh = jwtTokenService.generateRefreshJwt(Set.of("USER"));
 
         var accessTokenResponse = given()
@@ -41,5 +41,22 @@ class JwtTokenServiceTest {
                 .when().get("/jwt/access-validate")
                 .then()
                 .statusCode(200);
+    }
+
+    @Test
+    void accessTokenWithRolesSetShouldBeCheckedCorrectly() {
+        String firstAccessToken = jwtTokenService.generateAccessJwt(Set.of("USER"));
+        String secondAccessToken = jwtTokenService.generateAccessJwt(Set.of("USER", "MANAGER"));
+
+        // first token asserts
+        assert jwtTokenService.validateAccessTokenAndCheckRoles(firstAccessToken, Set.of("USER"));
+        assert !jwtTokenService.validateAccessTokenAndCheckRoles(firstAccessToken, Set.of("MANAGER"));
+        assert !jwtTokenService.validateAccessTokenAndCheckRoles(firstAccessToken, Set.of("USER", "MANAGER"));
+
+        // second token asserts
+        assert !jwtTokenService.validateAccessTokenAndCheckRoles(secondAccessToken, Set.of("INTRUDER"));
+        assert jwtTokenService.validateAccessTokenAndCheckRoles(secondAccessToken, Set.of("USER"));
+        assert jwtTokenService.validateAccessTokenAndCheckRoles(secondAccessToken, Set.of("USER", "MANAGER"));
+        assert jwtTokenService.validateAccessTokenAndCheckRoles(secondAccessToken, Set.of("MANAGER"));
     }
 }

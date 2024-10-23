@@ -1,5 +1,6 @@
 package org.acme;
 
+import io.quarkus.runtime.Startup;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.NotFoundException;
 
@@ -8,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Singleton
+@Startup
 public class AuthorisationService {
     private final Map<String, String> mockedUsersData;
     private final Map<String, Set<String>> mockedUsersRoles;
